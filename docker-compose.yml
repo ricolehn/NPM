@@ -12,6 +12,14 @@
 #   - Set NPM_HTTP3_DISABLED=1 to globally suppress HTTP/3 without rebuilding the image.
 #   - Set NPM_PUBLIC_HTTPS_PORT if your public-facing port differs from 443 (e.g. behind
 #     a firewall doing port translation) so that Alt-Svc headers advertise the correct port.
+#   - NPM_HTTP3_STREAM_BUFFER_SIZE (default 4m) limits each HTTP/3 download to that much
+#     data per round trip. nginx's own default of 64k caps a download at ~200 Mbit/s even
+#     on a LAN, and the setting only works globally, not in a host's advanced config.
+#   - Clients that reach this host over IPv6 are relayed by Docker's userland proxy
+#     (docker-proxy) when the container network has no IPv6. It drops QUIC bursts, so HTTP/3
+#     falls far behind HTTP/2 (which it barely affects), and the logs show 172.x.x.1 instead of
+#     client addresses. Use `network_mode: host` or an IPv6-enabled Docker network, or at
+#     least raise net.core.rmem_default on the host (see the warning in the startup log).
 
 services:
   app:
@@ -29,6 +37,10 @@ services:
       # Set to '1' to globally disable HTTP/3 at the backend level without any code change.
       # When enabled, the UI toggle is hidden and no QUIC sockets are allocated.
       NPM_HTTP3_DISABLED: 0
+      # Per-stream HTTP/3 send/receive buffer. A single download gets at most this much
+      # per round trip (4m is ~1 Gbit/s at 30 ms); nginx may hold this much memory per
+      # active stream.
+      NPM_HTTP3_STREAM_BUFFER_SIZE: 4m
     volumes:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
